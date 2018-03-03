@@ -4,6 +4,7 @@ from scipy.ndimage import imread
 from scipy.optimize import curve_fit
 from matplotlib.widgets import RectangleSelector
 def gaussian(x, x0, sigma, amplitude, offset):
+
 	return np.exp(-(x-x0)**2/(2*sigma**2)) * amplitude + offset
 
 def twoD_Gaussian((x,y), amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
@@ -18,6 +19,7 @@ def twoD_Gaussian((x,y), amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
 class fit2DGaussian():
 	def __init__(self, imagePath, diagnostics = False):
 		self.im = imread(imagePath, 'F')[::-1]
+		self.binnedImage = self.im
 		
 		print "Loaded Image"
 		print "Image Shape: ", self.im.shape
@@ -28,6 +30,8 @@ class fit2DGaussian():
 		ymax = self.im.shape[0]
 		
 		self.ROI = [0, xmax, 0, ymax]
+		
+		self.bining = 1
 		
 		self.fitImage = self.im
 		
@@ -49,7 +53,7 @@ class fit2DGaussian():
 			return
 			
 		f, ax = plt.subplots(1,1)
-		ax.imshow(self.im, origin='lower')
+		ax.imshow(self.binnedImage, origin='lower')
 		RS = RectangleSelector(ax, RS_callback,
                                        drawtype='box', useblit=True,
                                        spancoords='pixels',
@@ -59,19 +63,38 @@ class fit2DGaussian():
 		ROI = [click[1], release[1], click[0], release[0]] # [y0, y1, x0, x1]
 		print "ROI: ", ROI
 		
-		self.fitImage = self.im[ROI[0]:ROI[1],ROI[2]: ROI[3]]
+		self.fitImage = self.binnedImage[ROI[0]:ROI[1],ROI[2]: ROI[3]]
 		
 		plt.imshow(self.fitImage, origin='lower')
 		plt.savefig('ROI.png')
 		plt.show()
 		return
 		
+	def applyBinning(self, bining):	
+		size_y = self.im.shape[0] / bining
+		size_x = self.im.shape[1] / bining		
 		
+		image2D = self.im[:size_y*bining,:size_x*bining]
+		
+		shape = (size_y, bining, size_x, bining)
+		
+		binnedImage = image2D.reshape(shape).mean(-1).mean(1)
+		
+		binnedImage 
+		
+		self.binnedImage = binnedImage
+		
+		self.bining = bining
+		return
+	
 	def fit1D(self,image1D):
+		
+		#Make an axis for the data
 		size = image1D.shape[0]
 		
 		axis = np.linspace(0, size, size)
 		
+		#Guess at the correct values
 		x0 = (axis * image1D).sum()/image1D.sum()
 		amplitude = image1D.max()-image1D.min()
 		offset = image1D.min()
@@ -81,6 +104,7 @@ class fit2DGaussian():
 		guess = [x0, sigma, amplitude, offset]
 		
 		if self.diagnostics==True:
+			#Show the 1D Guess and 1D data
 			print '1D Guess: ', guess
 			plt.scatter(axis, image1D)
 			plt.plot(axis, gaussian(axis, *guess), 'r', label = "Guess")	
@@ -92,6 +116,7 @@ class fit2DGaussian():
 		p, cov = curve_fit(gaussian, axis, image1D, p0 = guess)
 		
 		if self.diagnostics==True:
+			#Show the guess, result of the 1D fit and 1D data
 			plt.scatter(axis, image1D)
 			plt.plot(axis, gaussian(axis, *guess), 'r', label = "Guess")
 			plt.plot(axis, gaussian(axis, *p), 'g', label = "fit")
@@ -104,7 +129,7 @@ class fit2DGaussian():
 
 	def fit2D(self, image2D = None):
 		if image2D == None:
-			image2D = self.im
+			image2D = self.binnedImage
 	
 		xmax = image2D.shape[1]
 		ymax = image2D.shape[0]
@@ -133,6 +158,8 @@ class fit2DGaussian():
 		shape = image2D.shape
 		
 		if self.diagnostics == True:
+			#Show the 2D Guess and image with
+			#binning and ROI.
 			f, ax = plt.subplots(2,1)
 			ax[0].imshow(image2D, origin='lower')
 			ax[1].imshow(twoD_Gaussian((x,y), *guess2D).reshape(shape), origin='lower')
@@ -145,6 +172,7 @@ class fit2DGaussian():
 		fit2D = twoD_Gaussian((x,y), *p2D).reshape(shape)
 			
 		if self.diagnostics == True:
+			#Show the fit
 			extent = [0, xmax, 0, ymax]
 			
 			f, ax = plt.subplots()
@@ -156,4 +184,15 @@ class fit2DGaussian():
 			plt.axis(v)
 			
 			plt.show()
+		
+		#Convert the values of x, y centers
+		#and standard deviations to return
+		#a measurement in units of the pixels
+		#of the original image, not the binned image
+		#used for the fit.
+		
+		print self.bining
+		for i in [1,2,3,4]:
+			p2D[i] *= self.bining
+		
 		return p2D
