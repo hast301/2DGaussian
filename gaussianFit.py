@@ -8,6 +8,8 @@ def gaussian(x, x0, sigma, amplitude, offset):
 	return np.exp(-(x-x0)**2/(2*sigma**2)) * amplitude + offset
 
 def twoD_Gaussian((x,y), amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
+		if np.abs(theta)>np.pi/4:
+			theta = theta % np.pi/4
 		xo = float(xo)
 		yo = float(yo)    
 		a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
@@ -15,10 +17,11 @@ def twoD_Gaussian((x,y), amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
 		c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
 		gauss2D = offset + amplitude*np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo) + c*((y-yo)**2)))
 		return gauss2D.ravel() 
-	
-class fit2DGaussian():
-	def __init__(self, imagePath, diagnostics = False):
-		self.im = imread(imagePath, 'F')[::-1]
+
+
+class fit2DGaussian(object):
+	def __init__(self, image, diagnostics = False):
+		self.im = image
 		self.binnedImage = self.im
 		
 		print "Loaded Image"
@@ -196,3 +199,9 @@ class fit2DGaussian():
 			p2D[i] *= self.bining
 		
 		return p2D
+		
+
+class loadAndFit(fit2DGaussian):
+		def __init__(self, path, diagnostics = False):
+			img = imread(path, 'F')[::-1]
+			super(loadAndFit, self).__init__(img, diagnostics)
